@@ -13,3 +13,4 @@ categories = ["game-development"]
 
 [dependencies]
 rand = "0.7.3"
+owo-colors = "1.1.3"
