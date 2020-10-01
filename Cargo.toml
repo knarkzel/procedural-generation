@@ -1,0 +1,8 @@
+[package]
+name = "procedural-generation"
+version = "0.1.0"
+authors = ["Knarkzel <knarkzel@cock.li>"]
+edition = "2018"
+
+[dependencies]
+rand = "0.7.3"
