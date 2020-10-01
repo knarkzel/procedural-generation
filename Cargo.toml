@@ -3,6 +3,10 @@ name = "procedural-generation"
 version = "0.1.0"
 authors = ["Knarkzel <knarkzel@cock.li>"]
 edition = "2018"
+license = "MIT"
+description = "Procedurally generate maps elegantly"
+repository = "https://gitlab.com/knarkzel/procedural-generation" 
+documentation = "https://docs.rs/procedural-generation/"
 
 [dependencies]
 rand = "0.7.3"
