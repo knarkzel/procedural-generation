@@ -7,6 +7,8 @@ license = "MIT"
 description = "Procedurally generate maps elegantly"
 repository = "https://gitlab.com/knarkzel/procedural-generation" 
 documentation = "https://docs.rs/procedural-generation/"
+keywords = ["procedural", "generation", "maps", "easy"]
+categories = ["game-development"]
 
 [dependencies]
 rand = "0.7.3"
