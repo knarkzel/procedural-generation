@@ -37,7 +37,7 @@ checksum = "c36fa947111f5c62a733b652544dd0016a43ce89619538a8ef92724a6f501a20"
 
 [[package]]
 name = "procedural-generation"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "owo-colors",
  "rand",

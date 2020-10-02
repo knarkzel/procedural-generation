@@ -8,66 +8,72 @@
 //! fn main() {
 //!     Generator::new()
 //!         .with_size(5, 10)
-//!         .spawn_repeated(1, 5)
-//!         .spawn_repeated(2, 3)
+//!         .spawn_terrain(1, 5)
+//!         .spawn_terrain(2, 3)
 //!         .show();
 //! }
 //! ```
 //!
-//! Produces the following:
+//! Produces the following (prints with colors in terminal!):
 //!
 //! ```bash
-//! [0, 0, 0, 0, 0]
-//! [2, 2, 0, 0, 0]
-//! [0, 0, 0, 0, 0]
-//! [0, 0, 0, 0, 1]
-//! [1, 0, 0, 0, 0]
-//! [0, 0, 0, 0, 1]
-//! [1, 2, 2, 0, 0]
-//! [1, 2, 2, 2, 2]
-//! [0, 0, 2, 2, 2]
-//! [0, 0, 0, 2, 2]
+//! 0 0 0 0 0
+//! 0 0 0 0 0
+//! 1 1 1 0 2
+//! 2 0 0 2 2
+//! 0 0 0 2 2
+//! 0 0 2 2 2
+//! 0 2 2 2 1
+//! 0 2 2 0 1
+//! 1 1 1 1 1
+//! 0 1 1 0 0
 //! ```
 
+use owo_colors::OwoColorize;
 use rand::prelude::*;
 use rand::rngs::ThreadRng;
 use std::fmt;
-use owo_colors::OwoColorize;
 
 #[derive(Debug, Default)]
 pub struct Generator {
     pub map: Vec<usize>,
     pub width: usize,
     pub height: usize,
-    pub rng: ThreadRng,
 }
 
 impl Generator {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn with_size(mut self, width: usize, height: usize) -> Self {
+    pub fn show(&self) {
+        println!("{}", self);
+    }
+    pub fn get_2d_map(&self) -> Vec<Vec<usize>> {
+        self.map.chunks(self.width).fold(vec![], |mut map, chunk| {
+            map.push(chunk.into());
+            map
+        })
+    }
+    pub fn with_size(&mut self, width: usize, height: usize) -> &mut Self {
         self.map = vec![0; width * height];
         self.width = width;
         self.height = height;
         self
     }
-    pub fn show(&self) {
-        println!("{}", self);
-    }
-    pub fn spawn(&mut self, number: usize) -> &mut Self {
-        let start = self.rng.gen_range(0, self.map.len());
-        self.map[start] = number;
-        self.populate(start, 0.5);
-        self
-    }
-    pub fn spawn_repeated(&mut self, number: usize, repeats: usize) -> &mut Self {
+    pub fn spawn_terrain(&mut self, number: usize, repeats: usize) -> &mut Self {
+        let mut rng = rand::thread_rng();
         for _ in 0..repeats {
-            self.spawn(number);
+            let start = self.spawn_base(number, &mut rng);
+            self.populate(start, 0.5, &mut rng);
         }
         self
     }
-    pub fn populate(&mut self, start: usize, probability: f64) {
+    fn spawn_base(&mut self, number: usize, rng: &mut ThreadRng) -> usize {
+        let start = rng.gen_range(0, self.map.len());
+        self.map[start] = number;
+        start
+    }
+    fn populate(&mut self, start: usize, probability: f64, rng: &mut ThreadRng) {
         let number = self.map[start];
         let candidates = vec![
             start.saturating_sub(1),
@@ -82,10 +88,10 @@ impl Generator {
                 && remainder > 0
                 && remainder < self.width
             {
-                let should_spawn = self.rng.gen_bool(probability);
+                let should_spawn = rng.gen_bool(probability);
                 if should_spawn {
                     self.map[candidate] = number;
-                    self.populate(candidate, probability / 2.);
+                    self.populate(candidate, probability / 2., rng);
                 }
             }
         }
@@ -94,9 +100,9 @@ impl Generator {
 
 impl fmt::Display for Generator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for x in 0..self.height {
-            for y in 0..self.width {
-                let value = self.map[x + y * self.height];
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let value = self.map[x + y * self.width];
                 let remainder = value % 8;
                 match remainder {
                     1 => write!(f, "{:?} ", value.red())?,
@@ -108,9 +114,8 @@ impl fmt::Display for Generator {
                     7 => write!(f, "{:?} ", value.yellow())?,
                     _ => write!(f, "{:?} ", value.black())?,
                 }
-                
             }
-            if x < self.height - 1 {
+            if y < self.height - 1 {
                 write!(f, "\n")?
             }
         }

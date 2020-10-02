@@ -9,23 +9,12 @@ use procedural_generation::Generator;
 fn main() {
     Generator::new()
         .with_size(5, 10)
-        .spawn_repeated(1, 5)
-        .spawn_repeated(2, 3)
+        .spawn_terrain(1, 5)
+        .spawn_terrain(2, 3)
         .show();
 }
 ```
 
-This produces the following:
+Produces the following (prints with colors in terminal!):
 
-```bash
-[0, 0, 0, 0, 0]
-[2, 2, 0, 0, 0]
-[0, 0, 0, 0, 0]
-[0, 0, 0, 0, 1]
-[1, 0, 0, 0, 0]
-[0, 0, 0, 0, 1]
-[1, 2, 2, 0, 0]
-[1, 2, 2, 2, 2]
-[0, 0, 2, 2, 2]
-[0, 0, 0, 2, 2]
-```
+![map](./map.png)
