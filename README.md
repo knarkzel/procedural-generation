@@ -7,10 +7,11 @@ It's very elegant to use, see the example below:
 use procedural_generation::Generator;
 
 fn main() {
+    let size = Size::new((4, 4), (10, 10));
     Generator::new()
-        .with_size(5, 10)
-        .spawn_terrain(1, 5)
-        .spawn_terrain(2, 3)
+        .with_size(30, 10)
+        .spawn_terrain(1, 50)
+        .spawn_rooms(2, 3, &size)
         .show();
 }
 ```
