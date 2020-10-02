@@ -1,6 +1,6 @@
 [package]
 name = "procedural-generation"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Knarkzel <knarkzel@cock.li>"]
 edition = "2018"
 readme = "README.md"
