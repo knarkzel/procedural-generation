@@ -18,4 +18,4 @@ fn main() {
 
 Produces the following (prints with colors in terminal!):
 
-![map](./map.png)
+![map](https://i.imgur.com/N37VPat.png)
