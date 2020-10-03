@@ -38,7 +38,6 @@
 
 use owo_colors::OwoColorize;
 use rand::prelude::*;
-use rand::rngs::ThreadRng;
 use noise::{Perlin, NoiseFn, Seedable};
 use smart_default::*;
 use rayon::prelude::*;
@@ -63,6 +62,8 @@ impl NoiseOptions {
     /// for more detail on each option. Usage of `NoiseOptions` looks like this:
     ///
     /// ```rust
+    /// use procedural_generation::*;
+    ///
     /// fn main() {
     ///     let noise_options = NoiseOptions { frequency: 4., ..NoiseOptions::default() };
     ///     Generator::new()
@@ -103,7 +104,7 @@ impl Generator {
             ..Self::default()
         }
     }
-    fn spawn_room(&mut self, number: usize, size: &Size, rng: &mut ThreadRng) -> &mut Self {
+    fn spawn_room(&mut self, number: usize, size: &Size, rng: &mut StdRng) -> &mut Self {
         let mut x = rng.gen_range(0, self.width);
         let mut y = rng.gen_range(0, self.height);
 
@@ -170,6 +171,8 @@ impl Generator {
     /// see [NoiseOptions](struct.NoiseOptions.html).
     ///
     /// ```rust
+    /// use procedural_generation::*;
+    /// 
     /// fn main() {
     ///     Generator::new()
     ///         .with_size(40, 20)
@@ -214,8 +217,11 @@ impl Generator {
     /// Spawns rooms of varying sizes based on input `size`. `number` sets
     /// what number the rooms are represented with in the map, `rooms` is amount of rooms
     /// to generate and `size` specifies the minimum and maximum boundaries for each room.
+    /// Shoutouts to this guy: [Procedural level generation with Rust](https://www.jamesbaum.co.uk/blether/procedural-level-generation-rust/).
     ///
     /// ```rust
+    /// use procedural_generation::*;
+    ///
     /// fn main() {
     ///     let size = Size::new((4, 4), (10, 10));
     ///     Generator::new()
@@ -225,7 +231,8 @@ impl Generator {
     /// }
     /// ```
     pub fn spawn_rooms(mut self, number: usize, rooms: usize, size: &Size) -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = SeedableRng::seed_from_u64(self.seed as u64);
+        // let mut rng = rand::thread_rng();
         for _ in 0..rooms {
             self.spawn_room(number, size, &mut rng);
         }
@@ -311,5 +318,61 @@ impl Room {
     }
     fn intersects(&self, other: &Self) -> bool {
         self.x <= other.x2 && self.x2 >= other.x && self.y <= other.y2 && self.y2 >= other.y
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Test for both seeding and implementation changes.
+    #[test]
+    fn perlin() {
+        use super::*;
+        let generator = Generator::new()
+            .with_size(40, 10)
+            .with_seed(0)
+            .spawn_perlin(|value| {
+                if value > 0.66 {
+                    2
+                } else if value > 0.33 {
+                    1
+                } else {
+                    0
+                }
+            });
+        let output = vec![
+            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+            2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,
+            2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,
+            2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,
+            2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,
+            2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,
+        ];
+        assert_eq!(generator.map, output);
+    }
+    #[test]
+    fn rooms() {
+        use super::*;
+        let size = Size::new((4, 4), (10, 10));
+        let generator = Generator::new()
+            .with_size(40, 10)
+            .with_seed(0)
+            .spawn_rooms(1, 5, &size);
+        let output = vec![
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
+            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
+            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
+            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
+            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
+            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
+            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
+            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,
+        ];
+        assert_eq!(generator.map, output);
     }
 }
