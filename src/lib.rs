@@ -4,13 +4,19 @@
 //!
 //! ```rust
 //! use procedural_generation::Generator;
-//!
+//! 
 //! fn main() {
-//!     let size = Size::new((4, 4), (10, 10));
 //!     Generator::new()
-//!         .with_size(30, 10)
-//!         .spawn_terrain(1, 50)
-//!         .spawn_rooms(2, 3, &size)
+//!         .with_size(40, 10)
+//!         .spawn_perlin(|value| {
+//!             if value > 0.66 {
+//!                 2
+//!             } else if value > 0.33 {
+//!                 1
+//!             } else {
+//!                 0
+//!             }
+//!         })
 //!         .show();
 //! }
 //! ```
@@ -18,22 +24,25 @@
 //! Produces the following (prints with colors in terminal!):
 //!
 //! ```bash
-//! 0 0 0 0 0 1 1 0 0 0 1 1 1 0 0 0 1 0 1 1 1 1 1 1 0 0 0 1 1 0
-//! 0 0 0 1 1 1 1 1 1 1 1 1 1 0 0 1 1 1 1 1 1 1 1 0 0 0 1 1 1 0
-//! 0 0 0 0 1 1 0 1 1 1 0 0 1 1 0 1 1 0 0 1 0 2 2 2 2 2 2 0 0 0
-//! 0 1 1 0 0 0 0 1 1 1 0 0 1 1 0 1 1 0 0 1 1 2 2 2 2 2 2 0 0 0
-//! 0 0 0 0 0 1 1 0 1 1 0 1 1 1 1 0 0 0 0 1 1 2 2 2 2 2 2 0 0 0
-//! 0 0 1 1 1 1 2 2 2 2 2 2 2 2 2 1 1 0 1 1 1 2 2 2 2 2 2 1 0 0
-//! 0 1 1 1 1 1 2 2 2 2 2 2 2 2 2 1 0 0 0 1 0 2 2 2 2 2 2 1 1 0
-//! 0 1 1 1 1 1 2 2 2 2 2 2 2 2 2 0 0 0 0 1 1 2 2 2 2 2 2 1 1 1
-//! 0 1 1 1 1 1 2 2 2 2 2 2 2 2 2 1 1 1 0 1 0 2 2 2 2 2 2 0 1 1
-//! 0 1 1 1 1 1 2 2 2 2 2 2 2 2 2 1 1 1 0 1 1 2 2 2 2 2 2 0 1 1
+//! 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+//! 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 1
+//! 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+//! 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+//! 1 1 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+//! 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+//! 1 1 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+//! 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 1 1 1 1
+//! 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 1 1 1 1
+//! 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1
 //! ```
+
+mod perlinnoise;
 
 use owo_colors::OwoColorize;
 use rand::prelude::*;
 use rand::rngs::ThreadRng;
 use std::fmt;
+use perlinnoise::PerlinNoise;
 
 /// The foundation of this crate
 #[derive(Debug, Default)]
@@ -45,37 +54,15 @@ pub struct Generator {
 }
 
 impl Generator {
+    /// Create generator.
     pub fn new() -> Self {
         Self::default()
     }
-    fn spawn_base(&mut self, number: usize, rng: &mut ThreadRng) -> usize {
-        let start = rng.gen_range(0, self.map.len());
-        self.map[start] = number;
-        start
-    }
-    fn populate(&mut self, start: usize, probability: f64, rng: &mut ThreadRng) {
-        let number = self.map[start];
-        let candidates = vec![
-            start.saturating_sub(1),
-            start + 1,
-            start.saturating_sub(self.width),
-            start + self.width,
-        ];
-        for candidate in candidates {
-            let remainder = candidate % self.width;
-            if candidate > 0
-                && candidate < self.map.len()
-                && remainder > 0
-                && remainder < self.width
-            {
-                let should_spawn = rng.gen_bool(probability);
-                if should_spawn {
-                    self.map[candidate] = number;
-                    self.populate(candidate, probability / 2., rng);
-                }
-            }
-        }
-    }
+    // fn spawn_base(&mut self, number: usize, rng: &mut ThreadRng) -> usize {
+    //     let start = rng.gen_range(0, self.map.len());
+    //     self.map[start] = number;
+    //     start
+    // }
     fn spawn_room(&mut self, number: usize, size: &Size, rng: &mut ThreadRng) -> &mut Self {
         let mut x = rng.gen_range(0, self.width);
         let mut y = rng.gen_range(0, self.height);
@@ -114,36 +101,86 @@ impl Generator {
         }
         self
     }
+    /// Prints the map to stdout with colors.
     pub fn show(&self) {
         println!("{}", self);
     }
-    pub fn get_2d_map(&self) -> Vec<Vec<usize>> {
-        self.map.chunks(self.width).fold(vec![], |mut map, chunk| {
-            map.push(chunk.into());
-            map
-        })
-    }
-    pub fn with_size(&mut self, width: usize, height: usize) -> &mut Self {
+    /// Sets size of map. This clears the map as well.
+    pub fn with_size(mut self, width: usize, height: usize) -> Self {
         self.map = vec![0; width * height];
         self.width = width;
         self.height = height;
         self
     }
-    pub fn spawn_terrain(&mut self, number: usize, repeats: usize) -> &mut Self {
-        let mut rng = rand::thread_rng();
-        for _ in 0..repeats {
-            let start = self.spawn_base(number, &mut rng);
-            self.populate(start, 0.5, &mut rng);
+    /// Generates perlin noise over the entire map.
+    /// For every coordinate, the closure `f(f64)` receives a value
+    /// between 0 and 1. This closure must then return a usize
+    /// accordingly to what value it receives, such as the following:
+    ///
+    /// ```rust
+    /// fn main() {
+    ///     Generator::new()
+    ///         .with_size(40, 20)
+    ///         .spawn_perlin(|value| {
+    ///             if value > 0.66 {
+    ///                 2
+    ///             } else if value > 0.33 {
+    ///                 1
+    ///             } else {
+    ///                 0
+    ///             }
+    ///         })
+    ///         .show();
+    /// }
+    /// ```
+    pub fn spawn_perlin<F: Fn(f64) -> usize>(mut self, f: F) -> Self { 
+        let perlin = PerlinNoise::new();
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let value = perlin.get([x as f64 / self.width as f64, y as f64 / self.height as f64]);
+                self.set(x, y, f(value));
+            }
         }
         self
     }
-    pub fn spawn_rooms(&mut self, number: usize, rooms: usize, size: &Size) -> &mut Self {
+    /// Spawns rooms of varying sizes based on input `size`. `number` sets
+    /// what number the rooms are represented with in the map, `rooms` is amount of rooms
+    /// to generate and `size` specifies the minimum and maximum boundaries for each room.
+    ///
+    /// ```rust
+    /// fn main() {
+    ///     let size = Size::new((4, 4), (10, 10));
+    ///     Generator::new()
+    ///         .with_size(30, 20)
+    ///         .spawn_rooms(2, 3, &size)
+    ///         .show();
+    /// }
+    /// ```
+    pub fn spawn_rooms(mut self, number: usize, rooms: usize, size: &Size) -> Self {
         let mut rng = rand::thread_rng();
         for _ in 0..rooms {
             self.spawn_room(number, size, &mut rng);
         }
         self
     }
+    /// Returns value at (x, y) coordinate, useful since map is in 1d form
+    /// but treated as 2d.
+    pub fn get(&self, x: usize, y: usize) -> usize {
+        self.map[x + y * self.width]
+    }
+    /// Same as `get(...)`, except sets value.
+    pub fn set(&mut self, x: usize, y: usize, value: usize) {
+        self.map[x + y * self.width] = value;
+    }
+    /// This is not recommended unless it's convenient or necessary, 
+    /// as 2d vectors are slow.
+    pub fn get_2d_map(&self) -> Vec<Vec<usize>> {
+        self.map.chunks(self.width).fold(vec![], |mut map, chunk| {
+            map.push(chunk.into());
+            map
+        })
+    }
+
 }
 
 impl fmt::Display for Generator {
@@ -187,7 +224,7 @@ impl Size {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Room {
     x: usize,
     y: usize,
@@ -208,6 +245,7 @@ impl Room {
             height,
         }
     }
+    /// Checks if this room intersects with another room
     fn intersects(&self, other: &Self) -> bool {
         self.x <= other.x2 && self.x2 >= other.x && self.y <= other.y2 && self.y2 >= other.y
     }
