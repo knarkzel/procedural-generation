@@ -41,6 +41,7 @@ use rand::prelude::*;
 use rand::rngs::ThreadRng;
 use noise::{Perlin, NoiseFn, Seedable};
 use smart_default::*;
+use rayon::prelude::*;
 use std::fmt;
 
 /// Different options for defining how noise should behave. 
@@ -184,26 +185,30 @@ impl Generator {
     ///         .show();
     /// }
     /// ```
-    pub fn spawn_perlin<F: Fn(f64) -> usize>(mut self, f: F) -> Self {
+    pub fn spawn_perlin<F: Fn(f64) -> usize + Sync>(mut self, f: F) -> Self {
         let perlin = Perlin::new().set_seed(self.seed);
         let redistribution = self.noise_options.redistribution;
         let freq = self.noise_options.frequency;
-        for (y, chunk) in self.map.chunks_mut(self.width).enumerate() {
-            for (x, index) in chunk.iter_mut().enumerate() {
-                let nx = x as f64 / self.width as f64;
-                let ny = y as f64 / self.height as f64;
+        let octaves = self.noise_options.octaves;
+        let width = self.width;
 
-                let value = (0..self.noise_options.octaves).fold(0., |acc, n| {
-                    let power = 2.0f64.powf(n as f64);
-                    let modifier = 1. / power;
-                    acc + modifier * perlin.get([nx * freq * power, ny * freq * power])
-                });
+        self.map.par_iter_mut().enumerate().for_each(|(pos, index)| {
+            let x = pos % width;
+            let y = pos / width;
 
-                // add redistribution, map range from -1, 1 to 0, 1 then parse
-                // biome and set it
-                *index = f((value.powf(redistribution) + 1.) / 2.);
-            }
-        }
+            let nx = x as f64 / width as f64;
+            let ny = y as f64 / width as f64;
+
+            let value = (0..octaves).fold(0., |acc, n| {
+                let power = 2.0f64.powf(n as f64);
+                let modifier = 1. / power;
+                acc + modifier * perlin.get([nx * freq * power, ny * freq * power])
+            });
+
+            // add redistribution, map range from -1, 1 to 0, 1 then parse
+            // biome and set it
+            *index = f((value.powf(redistribution) + 1.) / 2.);
+        });
         self
     }
     /// Spawns rooms of varying sizes based on input `size`. `number` sets
