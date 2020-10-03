@@ -186,24 +186,22 @@ impl Generator {
     /// ```
     pub fn spawn_perlin<F: Fn(f64) -> usize>(mut self, f: F) -> Self {
         let perlin = Perlin::new().set_seed(self.seed);
-        for y in 0..self.height {
-            for x in 0..self.width {
+        let redistribution = self.noise_options.redistribution;
+        let freq = self.noise_options.frequency;
+        for (y, chunk) in self.map.chunks_mut(self.width).enumerate() {
+            for (x, index) in chunk.iter_mut().enumerate() {
                 let nx = x as f64 / self.width as f64;
                 let ny = y as f64 / self.height as f64;
-                let freq = self.noise_options.frequency;
-                // higher octave makes pattern look more fractal or jagged
-                // frequency "zooms" out in a way
-                let mut value = (0..self.noise_options.octaves).fold(0., |acc, n| {
+
+                let value = (0..self.noise_options.octaves).fold(0., |acc, n| {
                     let power = 2.0f64.powf(n as f64);
                     let modifier = 1. / power;
                     acc + modifier * perlin.get([nx * freq * power, ny * freq * power])
                 });
-                // higher redistribution creates higher peaks and lower lows
-                value = value.powf(self.noise_options.redistribution);
-                // get value then map it from -1 -> 1 to range 0 -> 1
-                value = (value + 1.) / 2.;
-                // f(value) determines the "biome"
-                self.set(x, y, f(value));
+
+                // add redistribution, map range from -1, 1 to 0, 1 then parse
+                // biome and set it
+                *index = f((value.powf(redistribution) + 1.) / 2.);
             }
         }
         self

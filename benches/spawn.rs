@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use procedural_generation::*;
+use std::time::Duration;
 
 fn perlin_gen(width: usize, height: usize) {
     Generator::new()
@@ -23,8 +24,11 @@ fn room_gen(width: usize, height: usize) {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("perlin_gen 1000 1000", |b| b.iter(|| perlin_gen(black_box(1000), black_box(1000))));
-    c.bench_function("room_gen 1000 1000", |b| b.iter(|| room_gen(black_box(1000), black_box(1000))));
+    let mut group = c.benchmark_group("sample-size-example");
+    group.warm_up_time(Duration::from_secs(1));
+    group.sample_size(10);
+    group.bench_function("perlin_gen 1000 1000", |b| b.iter(|| perlin_gen(black_box(1000), black_box(1000))));
+    group.bench_function("room_gen 1000 1000", |b| b.iter(|| room_gen(black_box(1000), black_box(1000))));
 }
 
 criterion_group!(benches, criterion_benchmark);
