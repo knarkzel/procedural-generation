@@ -4,7 +4,7 @@
 //!
 //! ```rust
 //! use procedural_generation::Generator;
-//! 
+//!
 //! fn main() {
 //!     Generator::new()
 //!         .with_size(40, 10)
@@ -36,13 +36,51 @@
 //! 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1
 //! ```
 
-mod perlinnoise;
-
 use owo_colors::OwoColorize;
 use rand::prelude::*;
 use rand::rngs::ThreadRng;
+use noise::{Perlin, NoiseFn, Seedable};
+use smart_default::*;
 use std::fmt;
-use perlinnoise::PerlinNoise;
+
+/// Different options for defining how noise should behave. 
+#[derive(Debug, SmartDefault)]
+pub struct NoiseOptions {
+    /// Higher frequency adds a zooming effect to the noise. Default is 1.0.
+    #[default = 1.0]
+    pub frequency: f64,
+    #[default = 1.0]
+    /// Higher redistribution exaggerates higher peaks and lower lows. Default is 1.0.
+    pub redistribution: f64,
+    /// More octaves increases variety. Default is 1.
+    #[default = 1]
+    pub octaves: usize,
+}
+
+impl NoiseOptions {
+    /// Creates `NoiseOptions`. See [Making maps with noise functions](https://www.redblobgames.com/maps/terrain-from-noise/)
+    /// for more detail on each option. Usage of `NoiseOptions` looks like this:
+    ///
+    /// ```rust
+    /// fn main() {
+    ///     let noise_options = NoiseOptions { frequency: 4., ..NoiseOptions::default() };
+    ///     Generator::new()
+    ///         .with_size(40, 10)
+    ///         .with_options(noise_options)
+    ///         .spawn_perlin(|value| {
+    ///             if value > 0.5 {
+    ///                 1
+    ///             } else {
+    ///                 0
+    ///             }
+    ///         })
+    ///         .show();
+    /// }
+    /// ```
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 /// The foundation of this crate
 #[derive(Debug, Default)]
@@ -50,19 +88,20 @@ pub struct Generator {
     pub map: Vec<usize>,
     pub width: usize,
     pub height: usize,
+    pub noise_options: NoiseOptions,
     rooms: Vec<Room>,
+    seed: u32,
 }
 
 impl Generator {
     /// Create generator.
     pub fn new() -> Self {
-        Self::default()
+        let seed: u32 = rand::thread_rng().gen();
+        Self {
+            seed,
+            ..Self::default()
+        }
     }
-    // fn spawn_base(&mut self, number: usize, rng: &mut ThreadRng) -> usize {
-    //     let start = rng.gen_range(0, self.map.len());
-    //     self.map[start] = number;
-    //     start
-    // }
     fn spawn_room(&mut self, number: usize, size: &Size, rng: &mut ThreadRng) -> &mut Self {
         let mut x = rng.gen_range(0, self.width);
         let mut y = rng.gen_range(0, self.height);
@@ -82,7 +121,7 @@ impl Generator {
 
         let mut collides = false;
         let room = Room::new(x, y, width, height);
-        
+
         for other_room in &self.rooms {
             if room.intersects(&other_room) {
                 collides = true;
@@ -94,11 +133,21 @@ impl Generator {
             for row in 0..height {
                 for col in 0..width {
                     let pos = (room.x + col, room.y + row);
-                    self.map[pos.0 + pos.1 * self.width] = number;
+                    self.set(pos.0, pos.1, number);
                 }
             }
             self.rooms.push(room);
         }
+        self
+    }
+    /// Set seed for noise generation. Useful for reproducing results. Random otherwise.
+    pub fn with_seed(mut self, seed: u32) -> Self {
+        self.seed = seed;
+        self
+    }
+    /// Changes how noise is generated. Different values make for much more interesting noise
+    pub fn with_options(mut self, options: NoiseOptions) -> Self {
+        self.noise_options = options;
         self
     }
     /// Prints the map to stdout with colors.
@@ -115,7 +164,9 @@ impl Generator {
     /// Generates perlin noise over the entire map.
     /// For every coordinate, the closure `f(f64)` receives a value
     /// between 0 and 1. This closure must then return a usize
-    /// accordingly to what value it receives, such as the following:
+    /// accordingly to what value it receives, such as the following.
+    /// You can also modify some options for how the noise should behave,
+    /// see [NoiseOptions](struct.NoiseOptions.html).
     ///
     /// ```rust
     /// fn main() {
@@ -133,11 +184,25 @@ impl Generator {
     ///         .show();
     /// }
     /// ```
-    pub fn spawn_perlin<F: Fn(f64) -> usize>(mut self, f: F) -> Self { 
-        let perlin = PerlinNoise::new();
+    pub fn spawn_perlin<F: Fn(f64) -> usize>(mut self, f: F) -> Self {
+        let perlin = Perlin::new().set_seed(self.seed);
         for y in 0..self.height {
             for x in 0..self.width {
-                let value = perlin.get([x as f64 / self.width as f64, y as f64 / self.height as f64]);
+                let nx = x as f64 / self.width as f64;
+                let ny = y as f64 / self.height as f64;
+                let freq = self.noise_options.frequency;
+                // higher octave makes pattern look more fractal or jagged
+                // frequency "zooms" out in a way
+                let mut value = (0..self.noise_options.octaves).fold(0., |acc, n| {
+                    let power = 2.0f64.powf(n as f64);
+                    let modifier = 1. / power;
+                    acc + modifier * perlin.get([nx * freq * power, ny * freq * power])
+                });
+                // higher redistribution creates higher peaks and lower lows
+                value = value.powf(self.noise_options.redistribution);
+                // get value then map it from -1 -> 1 to range 0 -> 1
+                value = (value + 1.) / 2.;
+                // f(value) determines the "biome"
                 self.set(x, y, f(value));
             }
         }
@@ -172,7 +237,7 @@ impl Generator {
     pub fn set(&mut self, x: usize, y: usize, value: usize) {
         self.map[x + y * self.width] = value;
     }
-    /// This is not recommended unless it's convenient or necessary, 
+    /// This is not recommended unless it's convenient or necessary,
     /// as 2d vectors are slow.
     pub fn get_2d_map(&self) -> Vec<Vec<usize>> {
         self.map.chunks(self.width).fold(vec![], |mut map, chunk| {
@@ -180,14 +245,13 @@ impl Generator {
             map
         })
     }
-
 }
 
 impl fmt::Display for Generator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for y in 0..self.height {
             for x in 0..self.width {
-                let value = self.map[x + y * self.width];
+                let value = self.get(x, y);
                 let remainder = value % 7;
                 match remainder {
                     1 => write!(f, "{:?} ", value.red())?,
@@ -217,10 +281,7 @@ pub struct Size {
 
 impl Size {
     pub fn new(min_size: (usize, usize), max_size: (usize, usize)) -> Self {
-        Self {
-            min_size,
-            max_size,
-        }
+        Self { min_size, max_size }
     }
 }
 
@@ -245,7 +306,6 @@ impl Room {
             height,
         }
     }
-    /// Checks if this room intersects with another room
     fn intersects(&self, other: &Self) -> bool {
         self.x <= other.x2 && self.x2 >= other.x && self.y <= other.y2 && self.y2 >= other.y
     }
