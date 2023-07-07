@@ -412,14 +412,13 @@ dependencies = [
 
 [[package]]
 name = "procedural-generation"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "criterion",
  "noise",
  "owo-colors",
  "rand 0.8.5",
  "rayon",
- "smart-default",
 ]
 
 [[package]]
@@ -625,17 +624,6 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "smart-default"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0eb01866308440fc64d6c44d9e86c5cc17adfe33c4d6eed55da9145044d0ffc1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
