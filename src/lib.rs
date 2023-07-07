@@ -293,9 +293,8 @@ impl Generator {
 impl std::fmt::Display for Generator {
     #[cfg(feature = "colors")]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let value = self.get(x, y);
+        for chunk in self.map.chunks(self.width) {
+            for value in chunk.iter() {
                 let remainder = value % 7;
                 match remainder {
                     1 => write!(f, "{:?} ", value.red())?,
@@ -307,23 +306,18 @@ impl std::fmt::Display for Generator {
                     _ => write!(f, "{:?} ", value.blue())?,
                 }
             }
-            if y < self.height - 1 {
-                writeln!(f)?
-            }
+            writeln!(f)?;
         }
         Ok(())
     }
 
     #[cfg(not(feature = "colors"))]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let value = self.get(x, y);
-                write!(f, "{}", value);
+        for chunk in self.map.chunks(self.width) {
+            for value in chunk.iter() {
+                write!(f, "{}", value)?;
             }
-            if y < self.height - 1 {
-                writeln!(f)?
-            }
+            writeln!(f)?
         }
         Ok(())
     }
