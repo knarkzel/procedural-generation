@@ -36,14 +36,17 @@
 //! 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1
 //! ```
 
+#![allow(clippy::needless_doctest_main)]
+
+use noise::{NoiseFn, Perlin};
+#[cfg(feature = "colors")]
 use owo_colors::OwoColorize;
 use rand::prelude::*;
-use noise::{Perlin, NoiseFn, Seedable};
-use smart_default::*;
 use rayon::prelude::*;
+use smart_default::*;
 use std::fmt;
 
-/// Different options for defining how noise should behave. 
+/// Different options for defining how noise should behave.
 #[derive(Debug, SmartDefault)]
 pub struct NoiseOptions {
     /// Higher frequency adds a zooming effect to the noise. Default is 1.0.
@@ -105,11 +108,11 @@ impl Generator {
         }
     }
     fn spawn_room(&mut self, number: usize, size: &Size, rng: &mut StdRng) -> &mut Self {
-        let mut x = rng.gen_range(0, self.width);
-        let mut y = rng.gen_range(0, self.height);
+        let mut x = rng.gen_range(0..self.width);
+        let mut y = rng.gen_range(0..self.height);
 
-        let width = rng.gen_range(size.min_size.0, size.max_size.0);
-        let height = rng.gen_range(size.min_size.1, size.max_size.1);
+        let width = rng.gen_range(size.min_size.0..size.max_size.0);
+        let height = rng.gen_range(size.min_size.1..size.max_size.1);
 
         // shift room back on if it's off
         if x + width > self.width {
@@ -125,7 +128,7 @@ impl Generator {
         let room = Room::new(x, y, width, height);
 
         for other_room in &self.rooms {
-            if room.intersects(&other_room) {
+            if room.intersects(other_room) {
                 collides = true;
                 break;
             }
@@ -172,7 +175,7 @@ impl Generator {
     ///
     /// ```rust
     /// use procedural_generation::*;
-    /// 
+    ///
     /// fn main() {
     ///     Generator::new()
     ///         .with_size(40, 20)
@@ -189,29 +192,32 @@ impl Generator {
     /// }
     /// ```
     pub fn spawn_perlin<F: Fn(f64) -> usize + Sync>(mut self, f: F) -> Self {
-        let perlin = Perlin::new().set_seed(self.seed);
+        let perlin = Perlin::new(self.seed);
         let redistribution = self.noise_options.redistribution;
         let freq = self.noise_options.frequency;
         let octaves = self.noise_options.octaves;
         let width = self.width;
 
-        self.map.par_iter_mut().enumerate().for_each(|(pos, index)| {
-            let x = pos % width;
-            let y = pos / width;
+        self.map
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(pos, index)| {
+                let x = pos % width;
+                let y = pos / width;
 
-            let nx = x as f64 / width as f64;
-            let ny = y as f64 / width as f64;
+                let nx = x as f64 / width as f64;
+                let ny = y as f64 / width as f64;
 
-            let value = (0..octaves).fold(0., |acc, n| {
-                let power = 2.0f64.powf(n as f64);
-                let modifier = 1. / power;
-                acc + modifier * perlin.get([nx * freq * power, ny * freq * power])
+                let value = (0..octaves).fold(0., |acc, n| {
+                    let power = 2.0f64.powf(n as f64);
+                    let modifier = 1. / power;
+                    acc + modifier * perlin.get([nx * freq * power, ny * freq * power])
+                });
+
+                // add redistribution, map range from -1, 1 to 0, 1 then parse
+                // biome and set it
+                *index = f((value.powf(redistribution) + 1.) / 2.);
             });
-
-            // add redistribution, map range from -1, 1 to 0, 1 then parse
-            // biome and set it
-            *index = f((value.powf(redistribution) + 1.) / 2.);
-        });
         self
     }
     /// Spawns rooms of varying sizes based on input `size`. `number` sets
@@ -258,6 +264,7 @@ impl Generator {
 }
 
 impl fmt::Display for Generator {
+    #[cfg(feature = "colors")]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for y in 0..self.height {
             for x in 0..self.width {
@@ -274,7 +281,21 @@ impl fmt::Display for Generator {
                 }
             }
             if y < self.height - 1 {
-                write!(f, "\n")?
+                writeln!(f)?
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(not(feature = "colors"))]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let value = self.get(x, y);
+                write!(f, "{}", value);
+            }
+            if y < self.height - 1 {
+                writeln!(f)?
             }
         }
         Ok(())
@@ -301,7 +322,9 @@ struct Room {
     y: usize,
     x2: usize,
     y2: usize,
+    #[allow(dead_code)]
     width: usize,
+    #[allow(dead_code)]
     height: usize,
 }
 
@@ -340,16 +363,20 @@ mod tests {
                 }
             });
         let output = vec![
-            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-            1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-            2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,
-            2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,
-            2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,
-            2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,
-            2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,
+            1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2,
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         ];
         assert_eq!(generator.map, output);
     }
@@ -362,16 +389,20 @@ mod tests {
             .with_seed(0)
             .spawn_rooms(1, 5, &size);
         let output = vec![
-            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
-            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
-            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
-            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
-            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
-            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
-            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
-            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,1,
-            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0,
+            0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         assert_eq!(generator.map, output);
     }

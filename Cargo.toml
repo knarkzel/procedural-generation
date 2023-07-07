@@ -6,23 +6,27 @@ edition = "2018"
 readme = "README.md"
 license = "MIT"
 description = "Procedurally generate maps elegantly"
-repository = "https://gitlab.com/knarkzel/procedural-generation" 
+repository = "https://gitlab.com/knarkzel/procedural-generation"
 documentation = "https://docs.rs/procedural-generation/"
 keywords = ["procedural", "generation", "maps", "easy"]
 categories = ["game-development"]
 
 [dependencies]
-rand = "0.7.3"
-owo-colors = "1.1.3"
-smart-default = "0.6.0"
-rayon = "1.4.1"
+rand = "0.8"
+owo-colors = { version = "3", optional = true }
+smart-default = "0.7"
+rayon = "1"
 
 [dependencies.noise]
-version = "0.6.0"
+version = "0.8.0"
 default-features = false
 
 [dev-dependencies]
-criterion = "0.3.3"
+criterion = "0.5"
+
+[features]
+default = ["colors"]
+colors = ["owo-colors"]
 
 [[bench]]
 name = "spawn"
